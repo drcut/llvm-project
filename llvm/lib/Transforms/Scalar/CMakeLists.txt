@@ -70,6 +70,7 @@ add_llvm_component_library(LLVMScalarOpts
   ScalarizeMaskedMemIntrin.cpp
   SeparateConstOffsetFromGEP.cpp
   SimpleLoopUnswitch.cpp
+  FuncSimpleLoopUnswitch.cpp
   SimplifyCFGPass.cpp
   Sink.cpp
   SpeculativeExecution.cpp

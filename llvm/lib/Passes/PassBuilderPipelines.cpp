@@ -83,6 +83,7 @@
 #include "llvm/Transforms/Scalar/DivRemPairs.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
 #include "llvm/Transforms/Scalar/Float2Int.h"
+#include "llvm/Transforms/Scalar/FuncSimpleLoopUnswitch.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Scalar/IndVarSimplify.h"
 #include "llvm/Transforms/Scalar/InstSimplifyPass.h"
@@ -166,6 +167,11 @@ static cl::opt<bool> PerformMandatoryInliningsFirst(
 static cl::opt<bool> EnableO3NonTrivialUnswitching(
     "enable-npm-O3-nontrivial-unswitch", cl::init(true), cl::Hidden,
     cl::desc("Enable non-trivial loop unswitching for -O3"));
+
+static cl::opt<bool> UseFuncNonTrivialUnswitching(
+    "use-FuncPass-nontrivial-unswitch", cl::init(false), cl::Hidden,
+    cl::ZeroOrMore,
+    cl::desc("Use FuncPass implementation for non-trivial loop unswitching"));
 
 static cl::opt<bool> EnableEagerlyInvalidateAnalyses(
     "eagerly-invalidate-analyses", cl::init(true), cl::Hidden,
@@ -487,11 +493,19 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   // TODO: Investigate promotion cap for O1.
   LPM1.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
                         /*AllowSpeculation=*/true));
-  LPM1.addPass(
-      SimpleLoopUnswitchPass(/* NonTrivial */ Level == OptimizationLevel::O3 &&
-                             EnableO3NonTrivialUnswitching));
-  if (EnableLoopFlatten)
-    LPM1.addPass(LoopFlattenPass());
+  bool requireFuncNonTrivialUnswitching = (Level == OptimizationLevel::O3) &&
+                                          EnableO3NonTrivialUnswitching &&
+                                          UseFuncNonTrivialUnswitching;
+  if (!requireFuncNonTrivialUnswitching) {
+    LPM1.addPass(SimpleLoopUnswitchPass(
+        /* NonTrivial */ (Level == OptimizationLevel::O3) &&
+        EnableO3NonTrivialUnswitching));
+    if (EnableLoopFlatten)
+      LPM1.addPass(LoopFlattenPass());
+  } else {
+    LPM1.addPass(SimpleLoopUnswitchPass(
+        /* NonTrivial */ false));
+  }
 
   LPM2.addPass(LoopIdiomRecognizePass());
   LPM2.addPass(IndVarSimplifyPass());
@@ -525,6 +539,12 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM1),
                                               /*UseMemorySSA=*/true,
                                               /*UseBlockFrequencyInfo=*/true));
+  if (requireFuncNonTrivialUnswitching) {
+    FPM.addPass(FuncSimpleLoopUnswitchPass());
+    FPM.addPass(createFunctionToLoopPassAdaptor(
+        LoopFlattenPass(),
+        /*UseMemorySSA=*/true, /*UseBlockFrequencyInfo=*/true));
+  }
   FPM.addPass(
       SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
   FPM.addPass(InstCombinePass());
