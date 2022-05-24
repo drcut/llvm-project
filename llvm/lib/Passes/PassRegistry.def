@@ -114,7 +114,6 @@ MODULE_PASS("strip-debug-declare", StripDebugDeclarePass())
 MODULE_PASS("strip-nondebug", StripNonDebugSymbolsPass())
 MODULE_PASS("strip-nonlinetable-debuginfo", StripNonLineTableDebugInfoPass())
 MODULE_PASS("synthetic-counts-propagation", SyntheticCountsPropagation())
-MODULE_PASS("trigger-crash", TriggerCrashPass())
 MODULE_PASS("verify", VerifierPass())
 MODULE_PASS("view-callgraph", CallGraphViewerPass())
 MODULE_PASS("wholeprogramdevirt", WholeProgramDevirtPass())
@@ -441,6 +440,13 @@ FUNCTION_PASS_WITH_PARAMS("simplifycfg",
                           "no-sink-common-insts;sink-common-insts;"
                           "bonus-inst-threshold=N"
                           )
+FUNCTION_PASS_WITH_PARAMS("func-simple-loop-unswitch",
+                          "FuncSimpleLoopUnswitchPass",
+                          [](std::pair<bool, bool> Params) {
+                            return FuncSimpleLoopUnswitchPass(Params.first, Params.second);
+                          },
+                          parseLoopUnswitchOptions,
+                          "nontrivial;no-nontrivial;trivial;no-trivial")
 FUNCTION_PASS_WITH_PARAMS("loop-vectorize",
                           "LoopVectorizePass",
                            [](LoopVectorizeOptions Opts) {

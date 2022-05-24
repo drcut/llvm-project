@@ -98,6 +98,7 @@ void llvm::initializeScalarOpts(PassRegistry &Registry) {
   initializeCFGSimplifyPassPass(Registry);
   initializeStructurizeCFGLegacyPassPass(Registry);
   initializeSimpleLoopUnswitchLegacyPassPass(Registry);
+  initializeFuncSimpleLoopUnswitchLegacyPassPass(Registry);
   initializeSinkingLegacyPassPass(Registry);
   initializeTailCallElimPass(Registry);
   initializeTLSVariableHoistLegacyPassPass(Registry);
