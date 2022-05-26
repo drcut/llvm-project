@@ -2234,8 +2234,17 @@ static void unswitchNontrivialInvariants(
       BI->setSuccessor(1 - ClonedSucc, LoopPH);
       if (InsertFreeze) {
         auto Cond = skipTrivialSelect(BI->getCondition());
-        if (!isGuaranteedNotToBeUndefOrPoison(Cond, &AC, BI, &DT))
-          BI->setCondition(new FreezeInst(Cond, Cond->getName() + ".fr", BI));
+        if (!isGuaranteedNotToBeUndefOrPoison(Cond, &AC, BI, &DT)) {
+          Instruction* insert_point = BI;
+          while(Loop* outerLoop = LI.getLoopFor(insert_point->getParent())) {
+            if(outerLoop->isLoopInvariant(Cond)) {
+              insert_point = outerLoop->getLoopPreheader()->getTerminator();
+            } else {
+              break;
+            }
+          }
+          BI->setCondition(new FreezeInst(Cond, Cond->getName() + ".fr", insert_point));
+        }
       }
       DTUpdates.push_back({DominatorTree::Insert, SplitBB, ClonedPH});
     } else {
@@ -2772,7 +2781,6 @@ static bool unswitchBestCondition(
     Value *Cond = skipTrivialSelect(BI->getCondition());
     if (isa<Constant>(Cond))
       continue;
-
     if (L.isLoopInvariant(Cond)) {
       UnswitchCandidates.push_back({BI, {Cond}});
       continue;
@@ -2813,7 +2821,6 @@ static bool unswitchBestCondition(
   // If we didn't find any candidates, we're done.
   if (UnswitchCandidates.empty())
     return false;
-
   // Check if there are irreducible CFG cycles in this loop. If so, we cannot
   // easily unswitch non-trivial edges out of the loop. Doing so might turn the
   // irreducible control flow into reducible control flow and introduce new
@@ -3050,7 +3057,6 @@ unswitchLoop(Loop &L, DominatorTree &DT, LoopInfo &LI, AssumptionCache &AC,
   // Must be in loop simplified form: we need a preheader and dedicated exits.
   if (!L.isLoopSimplifyForm())
     return false;
-
   // Try trivial unswitch first before loop over other basic blocks in the loop.
   if (Trivial && unswitchAllTrivialConditions(L, DT, LI, SE, MSSAU)) {
     // If we unswitched successfully we will want to clean up the loop before
@@ -3105,9 +3111,15 @@ PreservedAnalyses FuncSimpleLoopUnswitchPass::run(Function &F,
   auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
   auto &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
   auto MSSA = &AM.getResult<MemorySSAAnalysis>(F).getMSSA();
+  Optional<MemorySSAUpdater> MSSAU;
+    if (MSSA) {
+      MSSAU = MemorySSAUpdater(MSSA);
+      if (VerifyMemorySSA)
+        MSSA->verifyMemorySSA();
+    }
   bool Changed = false;
   for (const auto &L : LI) {
-    Changed |= simplifyLoop(L, &DT, &LI, &SE, nullptr, nullptr,
+    Changed |= simplifyLoop(L, &DT, &LI, &SE, nullptr, MSSAU.getPointer(),
                             /*PreserveLCSSA=*/false);
     Changed |= formLCSSARecursively(*L, DT, &LI, &SE);
   }
@@ -3159,12 +3171,6 @@ PreservedAnalyses FuncSimpleLoopUnswitchPass::run(Function &F,
       LAM.clear(L, Name);
     };
 
-    Optional<MemorySSAUpdater> MSSAU;
-    if (MSSA) {
-      MSSAU = MemorySSAUpdater(MSSA);
-      if (VerifyMemorySSA)
-        MSSA->verifyMemorySSA();
-    }
     Changed |= unswitchLoop(
         L, AM.getResult<DominatorTreeAnalysis>(F),
         AM.getResult<LoopAnalysis>(F), AM.getResult<AssumptionAnalysis>(F),
