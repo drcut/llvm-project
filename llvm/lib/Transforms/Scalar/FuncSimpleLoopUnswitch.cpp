@@ -2235,15 +2235,16 @@ static void unswitchNontrivialInvariants(
       if (InsertFreeze) {
         auto Cond = skipTrivialSelect(BI->getCondition());
         if (!isGuaranteedNotToBeUndefOrPoison(Cond, &AC, BI, &DT)) {
-          Instruction* insert_point = BI;
-          while(Loop* outerLoop = LI.getLoopFor(insert_point->getParent())) {
-            if(outerLoop->isLoopInvariant(Cond)) {
+          Instruction *insert_point = BI;
+          while (Loop *outerLoop = LI.getLoopFor(insert_point->getParent())) {
+            if (outerLoop->isLoopInvariant(Cond)) {
               insert_point = outerLoop->getLoopPreheader()->getTerminator();
             } else {
               break;
             }
           }
-          BI->setCondition(new FreezeInst(Cond, Cond->getName() + ".fr", insert_point));
+          BI->setCondition(
+              new FreezeInst(Cond, Cond->getName() + ".fr", insert_point));
         }
       }
       DTUpdates.push_back({DominatorTree::Insert, SplitBB, ClonedPH});
@@ -3112,11 +3113,11 @@ PreservedAnalyses FuncSimpleLoopUnswitchPass::run(Function &F,
   auto &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
   auto MSSA = &AM.getResult<MemorySSAAnalysis>(F).getMSSA();
   Optional<MemorySSAUpdater> MSSAU;
-    if (MSSA) {
-      MSSAU = MemorySSAUpdater(MSSA);
-      if (VerifyMemorySSA)
-        MSSA->verifyMemorySSA();
-    }
+  if (MSSA) {
+    MSSAU = MemorySSAUpdater(MSSA);
+    if (VerifyMemorySSA)
+      MSSA->verifyMemorySSA();
+  }
   bool Changed = false;
   for (const auto &L : LI) {
     Changed |= simplifyLoop(L, &DT, &LI, &SE, nullptr, MSSAU.getPointer(),

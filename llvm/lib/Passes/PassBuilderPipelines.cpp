@@ -83,6 +83,7 @@
 #include "llvm/Transforms/Scalar/DivRemPairs.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
 #include "llvm/Transforms/Scalar/Float2Int.h"
+#include "llvm/Transforms/Scalar/FuncSimpleLoopUnswitch.h"
 #include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Transforms/Scalar/IndVarSimplify.h"
 #include "llvm/Transforms/Scalar/InstSimplifyPass.h"
@@ -347,7 +348,8 @@ PassBuilder::buildO1FunctionSimplificationPipeline(OptimizationLevel Level,
   // The loop passes in LPM2 (LoopFullUnrollPass) do not preserve MemorySSA.
   // *All* loop passes must preserve it, in order to be able to use it.
   FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM2),
-                                              /*UseMemorySSA=*/false,
+                                              /*UseMemorySSA=*/
+                                              false,
                                               /*UseBlockFrequencyInfo=*/false));
 
   // Delete small array after loop unroll.
@@ -488,11 +490,7 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   // TODO: Investigate promotion cap for O1.
   LPM1.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
                         /*AllowSpeculation=*/true));
-  LPM1.addPass(
-      SimpleLoopUnswitchPass(/* NonTrivial */ Level == OptimizationLevel::O3 &&
-                             EnableO3NonTrivialUnswitching));
-  if (EnableLoopFlatten)
-    LPM1.addPass(LoopFlattenPass());
+  LPM1.addPass(SimpleLoopUnswitchPass(/* NonTrivial */ false));
 
   LPM2.addPass(LoopIdiomRecognizePass());
   LPM2.addPass(IndVarSimplifyPass());
@@ -526,6 +524,19 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   FPM.addPass(createFunctionToLoopPassAdaptor(std::move(LPM1),
                                               /*UseMemorySSA=*/true,
                                               /*UseBlockFrequencyInfo=*/true));
+  // FPM.addPass(PrintFunctionPass(dbgs(), "\n\n*** Code before SLU ***\n"));
+  if (Level == OptimizationLevel::O3 && EnableO3NonTrivialUnswitching) {
+    FPM.addPass(FuncSimpleLoopUnswitchPass(
+        /*NonTrivial=*/true, /*Trivial=*/false));
+  }
+  if (EnableLoopFlatten) {
+    if (Level == OptimizationLevel::O3 && EnableO3NonTrivialUnswitching)
+      FPM.addPass(
+          SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
+    FPM.addPass(createFunctionToLoopPassAdaptor(
+        LoopFlattenPass(),
+        /*UseMemorySSA=*/true, /*UseBlockFrequencyInfo=*/true));
+  }
   FPM.addPass(
       SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
   FPM.addPass(InstCombinePass());
@@ -539,8 +550,8 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   // Delete small array after loop unroll.
   FPM.addPass(SROAPass());
 
-  // The matrix extension can introduce large vector operations early, which can
-  // benefit from running vector-combine early on.
+  // The matrix extension can introduce large vector operations early, which
+  // can benefit from running vector-combine early on.
   if (EnableMatrix)
     FPM.addPass(VectorCombinePass(/*ScalarizationOnly=*/true));
 
@@ -556,8 +567,8 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   // before...
   FPM.addPass(SCCPPass());
 
-  // Delete dead bit computations (instcombine runs after to fold away the dead
-  // computations, and then ADCE will run later to exploit any new DCE
+  // Delete dead bit computations (instcombine runs after to fold away the
+  // dead computations, and then ADCE will run later to exploit any new DCE
   // opportunities that creates).
   FPM.addPass(BDCEPass());
 
@@ -566,8 +577,8 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   FPM.addPass(InstCombinePass());
   invokePeepholeEPCallbacks(FPM, Level);
 
-  // Re-consider control flow based optimizations after redundancy elimination,
-  // redo DCE, etc.
+  // Re-consider control flow based optimizations after redundancy
+  // elimination, redo DCE, etc.
   if (EnableDFAJumpThreading && Level.getSizeLevel() == 0)
     FPM.addPass(DFAJumpThreadingPass());
 
@@ -579,7 +590,8 @@ PassBuilder::buildFunctionSimplificationPipeline(OptimizationLevel Level,
   // TODO: Investigate if this is too expensive.
   FPM.addPass(ADCEPass());
 
-  // Specially optimize memory movement as it doesn't look like dataflow in SSA.
+  // Specially optimize memory movement as it doesn't look like dataflow in
+  // SSA.
   FPM.addPass(MemCpyOptPass());
 
   FPM.addPass(DSEPass());
@@ -633,7 +645,7 @@ void PassBuilder::addPGOInstrPasses(ModulePassManager &MPM,
 
     FunctionPassManager FPM;
     FPM.addPass(SROAPass());
-    FPM.addPass(EarlyCSEPass());    // Catch trivial redundancies.
+    FPM.addPass(EarlyCSEPass()); // Catch trivial redundancies.
     FPM.addPass(SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(
         true)));                    // Merge & remove basic blocks.
     FPM.addPass(InstCombinePass()); // Combine silly sequences.
@@ -1045,13 +1057,17 @@ void PassBuilder::addVectorPasses(OptimizationLevel Level,
     LoopPassManager LPM;
     LPM.addPass(LICMPass(PTO.LicmMssaOptCap, PTO.LicmMssaNoAccForPromotionCap,
                          /*AllowSpeculation=*/true));
-    LPM.addPass(SimpleLoopUnswitchPass(/* NonTrivial */ Level ==
-                                       OptimizationLevel::O3));
+    LPM.addPass(SimpleLoopUnswitchPass(/*NonTrivial=*/false));
     ExtraPasses.addPass(
         RequireAnalysisPass<OptimizationRemarkEmitterAnalysis, Function>());
     ExtraPasses.addPass(
         createFunctionToLoopPassAdaptor(std::move(LPM), /*UseMemorySSA=*/true,
                                         /*UseBlockFrequencyInfo=*/true));
+    if (Level == OptimizationLevel::O3) {
+      ExtraPasses.addPass(FuncSimpleLoopUnswitchPass(
+          /*NonTrivial=*/true,
+          /*Trivial=*/false));
+    }
     ExtraPasses.addPass(
         SimplifyCFGPass(SimplifyCFGOptions().convertSwitchRangeToICmp(true)));
     ExtraPasses.addPass(InstCombinePass());
@@ -1672,7 +1688,6 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   MainFPM.addPass(DSEPass());
   MainFPM.addPass(MergedLoadStoreMotionPass());
 
-
   if (EnableConstraintElimination)
     MainFPM.addPass(ConstraintEliminationPass());
 
@@ -1697,8 +1712,7 @@ PassBuilder::buildLTODefaultPipeline(OptimizationLevel Level,
   addVectorPasses(Level, MainFPM, /* IsFullLTO */ true);
 
   // Run the OpenMPOpt CGSCC pass again late.
-  MPM.addPass(
-      createModuleToPostOrderCGSCCPassAdaptor(OpenMPOptCGSCCPass()));
+  MPM.addPass(createModuleToPostOrderCGSCCPassAdaptor(OpenMPOptCGSCCPass()));
 
   invokePeepholeEPCallbacks(MainFPM, Level);
   MainFPM.addPass(JumpThreadingPass(/*InsertFreezeWhenUnfoldingSelect*/ true));
