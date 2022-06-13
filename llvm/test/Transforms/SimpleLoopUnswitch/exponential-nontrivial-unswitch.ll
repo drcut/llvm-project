@@ -18,6 +18,10 @@
 ; RUN:     -unswitch-num-initial-unscaled-candidates=0 -unswitch-siblings-toplevel-div=8 \
 ; RUN:     -passes='loop-mssa(simple-loop-unswitch<nontrivial>),print<loops>' -disable-output 2>&1 | FileCheck %s --check-prefixes=LOOP1
 ;
+; RUN: opt < %s -enable-unswitch-cost-multiplier=true \
+; RUN:     -unswitch-num-initial-unscaled-candidates=0 -unswitch-siblings-toplevel-div=8 \
+; RUN:     -passes='loop-unswitch-func,print<loops>' -disable-output 2>&1 | FileCheck %s --check-prefixes=LOOP1
+;
 ; With relaxed candidates multiplier (unscaled candidates == 8) we should allow
 ; some unswitches to happen until siblings multiplier starts kicking in:
 ; With relaxed candidates multiplier (unscaled candidates == 8) we should allow
@@ -31,6 +35,10 @@
 ; RUN:     -unswitch-num-initial-unscaled-candidates=8 -unswitch-siblings-toplevel-div=1 \
 ; RUN:     -passes='loop-mssa(simple-loop-unswitch<nontrivial>),print<loops>' -disable-output 2>&1 | FileCheck %s --check-prefixes=LOOP5
 ;
+; RUN: opt < %s -enable-unswitch-cost-multiplier=true \
+; RUN:     -unswitch-num-initial-unscaled-candidates=8 -unswitch-siblings-toplevel-div=1 \
+; RUN:     -passes='loop-unswitch-func,print<loops>' -disable-output 2>&1 | FileCheck %s --check-prefixes=LOOP5
+;
 ; With relaxed candidates multiplier (unscaled candidates == 8) and with relaxed
 ; siblings multiplier for top-level loops (toplevel-div == 8) we should get
 ;    2^(num conds) == 2^5 == 32
@@ -43,6 +51,10 @@
 ; RUN: opt < %s -enable-unswitch-cost-multiplier=true \
 ; RUN:     -unswitch-num-initial-unscaled-candidates=8 -unswitch-siblings-toplevel-div=8 \
 ; RUN:     -passes='loop-mssa(simple-loop-unswitch<nontrivial>),print<loops>' -disable-output 2>&1 | FileCheck %s --check-prefixes=LOOP32
+;
+; RUN: opt < %s -enable-unswitch-cost-multiplier=true \
+; RUN:     -unswitch-num-initial-unscaled-candidates=8 -unswitch-siblings-toplevel-div=8 \
+; RUN:     -passes='loop-unswitch-func,print<loops>' -disable-output 2>&1 | FileCheck %s --check-prefixes=LOOP32
 ;
 ; Similarly get
 ;    2^(num conds) == 2^5 == 32

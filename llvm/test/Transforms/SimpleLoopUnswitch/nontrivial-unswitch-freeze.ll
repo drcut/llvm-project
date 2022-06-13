@@ -2,6 +2,7 @@
 ; RUN: opt -freeze-loop-unswitch-cond -passes='loop(simple-loop-unswitch<nontrivial>),verify<loops>' -S < %s | FileCheck %s
 ; RUN: opt -freeze-loop-unswitch-cond -passes='loop-mssa(simple-loop-unswitch<nontrivial>),verify<loops>' -S < %s | FileCheck %s
 ; RUN: opt -freeze-loop-unswitch-cond -simple-loop-unswitch -enable-nontrivial-unswitch -verify-memoryssa -S < %s | FileCheck %s
+; RUN: opt -freeze-loop-unswitch-cond -passes='loop-unswitch-func,verify<loops>' -S < %s | FileCheck %s
 
 declare i32 @a()
 declare i32 @b()

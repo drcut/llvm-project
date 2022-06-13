@@ -5,6 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+//
+// This file contains two Pass: a LoopPass and a FunctionPass. The LoopPass
+// applies both trivial and non-trivial LoopUnswitch, while the FunctionPass
+// only applies non-trivial LoopUnswitch.
+//===----------------------------------------------------------------------===//
 
 #ifndef LLVM_TRANSFORMS_SCALAR_SIMPLELOOPUNSWITCH_H
 #define LLVM_TRANSFORMS_SCALAR_SIMPLELOOPUNSWITCH_H
@@ -77,6 +82,16 @@ public:
 
   void printPipeline(raw_ostream &OS,
                      function_ref<StringRef(StringRef)> MapClassName2PassName);
+};
+
+// This pass only applies non-trivial LoopUnswitch, and share code with the
+// above LoopPass implementation. We re-implement the non-trivial LoopUnswitch
+// with FunctionPass becuase we may need FunctionAnalysis to apply
+// non-trivial LoopUnswitch,
+class FuncSimpleLoopUnswitchPass
+    : public PassInfoMixin<FuncSimpleLoopUnswitchPass> {
+public:
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &AM);
 };
 
 /// Create the legacy pass object for the simple loop unswitcher.

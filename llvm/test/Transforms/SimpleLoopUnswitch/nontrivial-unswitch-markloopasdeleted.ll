@@ -1,5 +1,5 @@
-; RUN: opt < %s -enable-loop-distribute -passes='loop-distribute,loop-mssa(simple-loop-unswitch<nontrivial>),loop-distribute' -o /dev/null -S -debug-pass-manager=verbose 2>&1 | FileCheck %s
-
+; RUN: opt < %s -enable-loop-distribute -passes='loop-distribute,loop-mssa(simple-loop-unswitch<nontrivial>),loop-distribute' -o /dev/null -S -debug-pass-manager=verbose 2>&1 | FileCheck %s --check-prefixes=LOOPPASS
+; RUN: opt < %s -enable-loop-distribute -passes='loop-distribute,loop-unswitch-func,loop-distribute' -o /dev/null -S -debug-pass-manager=verbose 2>&1 | FileCheck %s --check-prefixes=FUNCPASS
 
 ; Running loop-distribute will result in LoopAccessAnalysis being required and
 ; cached in the LoopAnalysisManagerFunctionProxy.
@@ -17,8 +17,9 @@
 ; SimpleLoopUnswitch not marking the Loop as removed, so we missed clearing
 ; the analysis caches.
 ;
-; CHECK: Running pass: SimpleLoopUnswitchPass on Loop at depth 1 containing: %loop_begin<header>,%loop_b,%loop_b_inner,%loop_b_inner_exit,%loop_a,%loop_a_inner,%loop_a_inner_exit,%latch<latch><exiting>
-; CHECK-NEXT: Clearing all analysis results for: loop_a_inner
+; LOOPPASS: Running pass: SimpleLoopUnswitchPass on Loop at depth 1 containing: %loop_begin<header>,%loop_b,%loop_b_inner,%loop_b_inner_exit,%loop_a,%loop_a_inner,%loop_a_inner_exit,%latch<latch><exiting>
+; FUNCPASS: Running pass: FuncSimpleLoopUnswitchPass on test6
+; CHECK: Clearing all analysis results for: loop_a_inner
 
 
 ; When running loop-distribute the second time we can see that loop_a_inner

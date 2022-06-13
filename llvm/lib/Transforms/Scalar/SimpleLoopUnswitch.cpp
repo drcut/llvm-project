@@ -1,8 +1,13 @@
-///===- SimpleLoopUnswitch.cpp - Hoist loop-invariant control flow ---------===//
+///===- SimpleLoopUnswitch.cpp - Hoist loop-invariant control flow
+///---------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+//
+// This file implements LoopUnswitch for both trivial and non-trivial cases
 //
 //===----------------------------------------------------------------------===//
 
@@ -3165,6 +3170,93 @@ PreservedAnalyses SimpleLoopUnswitchPass::run(Loop &L, LoopAnalysisManager &AM,
 
   auto PA = getLoopPassPreservedAnalyses();
   if (AR.MSSA)
+    PA.preserve<MemorySSAAnalysis>();
+  return PA;
+}
+
+PreservedAnalyses FuncSimpleLoopUnswitchPass::run(Function &F,
+                                                  FunctionAnalysisManager &AM) {
+  LoopInfo &LI = AM.getResult<LoopAnalysis>(F);
+  auto &DT = AM.getResult<DominatorTreeAnalysis>(F);
+  auto &SE = AM.getResult<ScalarEvolutionAnalysis>(F);
+  auto MSSA = &AM.getResult<MemorySSAAnalysis>(F).getMSSA();
+  Optional<MemorySSAUpdater> MSSAU;
+  if (MSSA) {
+    MSSAU = MemorySSAUpdater(MSSA);
+    if (VerifyMemorySSA)
+      MSSA->verifyMemorySSA();
+  }
+  bool Changed = false;
+  for (const auto &L : LI) {
+    Changed |= simplifyLoop(L, &DT, &LI, &SE, nullptr, MSSAU.getPointer(),
+                            /*PreserveLCSSA=*/false);
+    Changed |= formLCSSARecursively(*L, DT, &LI, &SE);
+  }
+
+  SmallPriorityWorklist<Loop *, 4> Worklist;
+  appendLoopsToWorklist(LI, Worklist);
+  while (!Worklist.empty()) {
+    Loop &L = *Worklist.pop_back_val();
+    LLVM_DEBUG(dbgs() << "Unswitching loop in " << F.getName() << ": " << L
+                      << "\n");
+
+    // Save the current loop name in a variable so that we can report it even
+    // after it has been deleted.
+    std::string LoopName = std::string(L.getName());
+
+    auto &LAM = AM.getResult<LoopAnalysisManagerFunctionProxy>(F).getManager();
+
+    auto UnswitchCB = [&L, &LAM, &LoopName, &Worklist](
+                          bool CurrentLoopValid, bool PartiallyInvariant,
+                          ArrayRef<Loop *> NewLoops) {
+      // If we did a non-trivial unswitch, we have added new (cloned) loops.
+      if (!NewLoops.empty())
+        appendLoopsToWorklist(NewLoops, Worklist);
+
+      // If the current loop remains valid, we should revisit it to catch any
+      // other unswitch opportunities. Otherwise, we need to mark it as deleted.
+      if (CurrentLoopValid) {
+        if (PartiallyInvariant) {
+          // Mark the new loop as partially unswitched, to avoid unswitching on
+          // the same condition again.
+          auto &Context = L.getHeader()->getContext();
+          MDNode *DisableUnswitchMD = MDNode::get(
+              Context,
+              MDString::get(Context, "llvm.loop.unswitch.partial.disable"));
+          MDNode *NewLoopID = makePostTransformationMetadata(
+              Context, L.getLoopID(), {"llvm.loop.unswitch.partial"},
+              {DisableUnswitchMD});
+          L.setLoopID(NewLoopID);
+        } else
+          Worklist.insert(&L);
+      } else
+        LAM.clear(L, LoopName);
+    };
+
+    auto DestroyLoopCB = [&LAM](Loop &L, StringRef Name) {
+      LAM.clear(L, Name);
+    };
+    Changed |= unswitchLoop(
+        L, AM.getResult<DominatorTreeAnalysis>(F),
+        AM.getResult<LoopAnalysis>(F), AM.getResult<AssumptionAnalysis>(F),
+        AM.getResult<AAManager>(F), AM.getResult<TargetIRAnalysis>(F),
+        /*Trivial=*/false, /*NonTrivial=*/true,
+        UnswitchCB, &AM.getResult<ScalarEvolutionAnalysis>(F),
+        MSSAU.hasValue() ? MSSAU.getPointer() : nullptr, DestroyLoopCB);
+  }
+  if (!Changed)
+    return PreservedAnalyses::all();
+
+  if (MSSA && VerifyMemorySSA)
+    MSSA->verifyMemorySSA();
+
+  // Historically this pass has had issues with the dominator tree so verify it
+  // in asserts builds.
+  assert(AM.getResult<DominatorTreeAnalysis>(F).verify(
+      DominatorTree::VerificationLevel::Fast));
+
+  auto PA = getLoopPassPreservedAnalyses();
+  if (MSSA)
     PA.preserve<MemorySSAAnalysis>();
   return PA;
 }

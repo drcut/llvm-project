@@ -43,6 +43,9 @@
 ; RUN: opt < %s -enable-unswitch-cost-multiplier=false \
 ; RUN:     -passes='loop-mssa(simple-loop-unswitch<nontrivial>),print<loops>' -disable-output 2>&1 | FileCheck %s --check-prefixes=LOOP1
 ;
+; RUN: opt < %s -enable-unswitch-cost-multiplier=false \
+; RUN:     -passes='loop-unswitch-func,print<loops>' -disable-output 2>&1 | FileCheck %s --check-prefixes=LOOP1
+;
 ;
 ; Single loop, not unswitched
 ; LOOP1:     Loop at depth 1 containing:
