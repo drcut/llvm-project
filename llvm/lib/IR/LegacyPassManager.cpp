@@ -1447,75 +1447,48 @@ bool FPPassManager::runOnFunction(Function &F) {
             !FP->getPassName().contains("X86 Domain Reassignment Pass") &&
             !FP->getPassName().contains("ObjC ARC contraction") &&
             !FP->getPassName().contains("Interleaved Access Pass") &&
-            !FP->getPassName().contains("Expand reduction intrinsics") &&
-            !FP->getPassName().contains("Merge contiguous icmps into a memcmp") &&
-            !FP->getPassName().contains("Pseudo Probe Inserter") &&
-            !FP->getPassName().contains("X86 speculative load hardening") &&
-            !FP->getPassName().contains("Lower constant intrinsics") &&
-            !FP->getPassName().contains("Constant Hoisting") &&
-            !FP->getPassName().contains("Insert XRay ops") &&
-            !FP->getPassName().contains("Lower AMX intrinsics") &&
-            !FP->getPassName().contains("Remove dead machine instructions") &&
-            !FP->getPassName().contains("Insert fentry calls") &&
+            //!FP->getPassName().contains("Pseudo Probe Inserter") &&
+            //!FP->getPassName().contains("X86 speculative load hardening") &&
             !FP->getPassName().contains("Check CFA info and insert CFI instructions if needed") &&
             !FP->getPassName().contains("Finalize ISel and expand pseudo-instructions") &&
-            !FP->getPassName().contains("Control Flow Optimizer") &&
             !FP->getPassName().contains("Merge disjoint stack slots") &&
-            !FP->getPassName().contains("Lower AMX type for load/store") &&
-            !FP->getPassName().contains("Canonicalize natural loops") &&
-            !FP->getPassName().contains("Replace intrinsics with calls to vector library") &&
+            //!FP->getPassName().contains("Replace intrinsics with calls to vector library") &&
             !FP->getPassName().contains("Local Stack Slot Allocation") &&
             !FP->getPassName().contains("X86 Speculative Execution Side Effect Suppression") &&
-            !FP->getPassName().contains("Early If-Conversion") &&
             !FP->getPassName().contains("X86 Avoid Store Forwarding Blocks") &&
             !FP->getPassName().contains("Post-RA pseudo instruction expansion pass") &&
             !FP->getPassName().contains("Register Allocation Pass Scoring") &&
             !FP->getPassName().contains("Contiguously Lay Out Funclets") &&
-            !FP->getPassName().contains("X86 Load Value Injection (LVI) Ret-Hardening") &&
             !FP->getPassName().contains("Stack Slot Coloring") &&
-            !FP->getPassName().contains("Optimize machine instruction PHIs") &&
+            //!FP->getPassName().contains("Optimize machine instruction PHIs") &&
             !FP->getPassName().contains("PostRA Machine Sink") &&
-            !FP->getPassName().contains("Machine code sinking") &&
-            !FP->getPassName().contains("Expand vector predication intrinsics") &&
-            !FP->getPassName().contains("X86 Partial Reduction") &&
-            !FP->getPassName().contains("Machine Common Subexpression Elimination") &&
-            !FP->getPassName().contains("X86 LEA Optimize") &&
+            //!FP->getPassName().contains("Expand vector predication intrinsics") &&
             !FP->getPassName().contains("Shadow Stack GC Lowering") &&
-            !FP->getPassName().contains("X86 Lower Tile Copy") &&
+            //!FP->getPassName().contains("X86 Lower Tile Copy") &&
             !FP->getPassName().contains("Tile Register Configure") &&
             !FP->getPassName().contains("Early Tail Duplication") &&
             !FP->getPassName().contains("Process Implicit Definitions") &&
-            !FP->getPassName().contains("Expand memcmp() to load/stores") &&
+            //!FP->getPassName().contains("Expand memcmp() to load/stores") &&
             !FP->getPassName().contains("CodeGen Prepare") &&
-            !FP->getPassName().contains("X86 Load Value Injection (LVI) Load Hardening") &&
             !FP->getPassName().contains("BreakFalseDeps") &&
-            !FP->getPassName().contains("Remove unreachable blocks from the CFG") &&
-            !FP->getPassName().contains("Compressing EVEX instrs to VEX encoding when possible") &&
-            !FP->getPassName().contains("X86 cmov Conversion") &&
-            !FP->getPassName().contains("Machine InstCombiner") &&
+            //!FP->getPassName().contains("Compressing EVEX instrs to VEX encoding when possible") &&
             !FP->getPassName().contains("Exception handling preparation") &&
-            !FP->getPassName().contains("Early Machine Loop Invariant Code Motion") &&
+            //!FP->getPassName().contains("Early Machine Loop Invariant Code Motion") &&
             !FP->getPassName().contains("Post RA top-down list latency scheduler") &&
-            !FP->getPassName().contains("Partially inline calls to library functions") &&
-            !FP->getPassName().contains("Expand indirectbr instructions") &&
+            //!FP->getPassName().contains("Partially inline calls to library functions") &&
+            //!FP->getPassName().contains("Expand indirectbr instructions") &&
             !FP->getPassName().contains("Live Range Shrink") &&
-            !FP->getPassName().contains("TLS Variable Hoist") &&
-            !FP->getPassName().contains("X86 Optimize Call Frame") &&
             !FP->getPassName().contains("Rename Disconnected Subregister Components") &&
-            !FP->getPassName().contains("Eliminate PHI nodes for register allocation") &&
+            //!FP->getPassName().contains("Eliminate PHI nodes for register allocation") &&
             !FP->getPassName().contains("X86 FP Stackifier") &&
             !FP->getPassName().contains("Branch Probability Basic Block Placement") &&
-            !FP->getPassName().contains("Two-Address instruction pass") &&
-            !FP->getPassName().contains("Peephole Optimizations") &&
-            !FP->getPassName().contains("Lower Garbage Collection Instructions") &&
-            !FP->getPassName().contains("Expand Atomic instructions") &&
-            !FP->getPassName().contains("Machine Copy Propagation Pass") &&
+            !FP->getPassName().contains("Two-Address instruction pass") && // Two-Address cannot be removed
+            //!FP->getPassName().contains("Expand Atomic instructions") &&
+            //!FP->getPassName().contains("Machine Copy Propagation Pass") &&
             !FP->getPassName().contains("X86 Execution Dependency Fix") &&
             !FP->getPassName().contains("X86 Fixup SetCC") &&
-            !FP->getPassName().contains("Machine Loop Invariant Code Motion") &&
             !FP->getPassName().contains("Scalarize Masked Memory Intrinsics") &&
             !FP->getPassName().contains("Fixup Statepoint Caller Saved") &&
-            !FP->getPassName().contains("Tail Duplication") &&
             !FP->getPassName().contains("Safe Stack instrumentation pass") &&
             !FP->getPassName().contains("X86 Return Thunks") &&
             !FP->getPassName().contains(
@@ -1526,7 +1499,7 @@ bool FPPassManager::runOnFunction(Function &F) {
           std::string hashValue =
               FP->getPassName().str() + std::to_string(FP->structuralHash(F));
           if (dormant_pass.find(hashValue) != dormant_pass.end()) {
-            printf("find dormant: %s\n", FP->getPassName().str().c_str());
+            //printf("find dormant: %s\n", FP->getPassName().str().c_str());
             dormant = true;
             1;
           }
