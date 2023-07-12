@@ -462,6 +462,7 @@ public:
   explicit FPPassManager() : ModulePass(ID) {}
 
   std::set<uint64_t> dormant_pass;
+  std::string dormant_pass_folder;
 
   /// run - Execute all of the passes scheduled for execution.  Keep track of
   /// whether any of the passes modifies the module, and if so, return true.
