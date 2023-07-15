@@ -39,9 +39,8 @@
 
 #include "llvm/IR/StructuralHash.h"
 
-std::string project_dormant_log_folder = "/nethome/rhan38/USERSCRATCH/inc_compilation/chash/clang-plugin/experiments/dormant_pass/postgres/";
-#define INC_BUILD
-//#define INC_PROF
+std::string project_dormant_log_folder;;
+
 using namespace llvm;
 // See PassManagers.h for Pass Manager infrastructure overview.
 
@@ -1393,15 +1392,15 @@ void FPPassManager::dumpPassStructure(unsigned Offset) {
   }
 }
 
-      bool folderExists(const std::string& folderPath) {
-          struct stat info;
-          return (stat(folderPath.c_str(), &info) == 0 && (info.st_mode & S_IFDIR));
-      }
+bool folderExists(const std::string &folderPath) {
+  struct stat info;
+  return (stat(folderPath.c_str(), &info) == 0 && (info.st_mode & S_IFDIR));
+}
 
-      bool createFolder(const std::string& folderPath) {
-          int status = mkdir(folderPath.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-          return (status == 0);
-      }
+bool createFolder(const std::string &folderPath) {
+  int status = mkdir(folderPath.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+  return (status == 0);
+}
 
 /// Execute all of the passes scheduled for execution by invoking
 /// runOnFunction method.  Keep track of whether any of the passes modifies
@@ -1435,34 +1434,28 @@ bool FPPassManager::runOnFunction(Function &F) {
   float check_time = 0;
   float saved_time = 0;
   clock_t begin_time;
-  
 
   std::hash<std::string> hasher;
+  std::ofstream outputFile;
 
-  #ifdef INC_PROF
-      std::ofstream outputFile;
-  std::string raw_prof_folder = project_dormant_log_folder + dormant_pass_folder;
-  {
-          // Check if the folder exists
-          if (!folderExists(raw_prof_folder)) {
-              // Create the folder
-              if (!createFolder(raw_prof_folder)) {
-                  std::cerr << "Failed to create the folder." << std::endl;
-                  return 1;
-              }
-          }
-
+  if (getenv("INC_BUILD_PROF")) {
+    std::string raw_prof_folder =
+        project_dormant_log_folder + '/' + dormant_pass_folder;
+    {
+      // Check if the folder exists
+      if (!folderExists(raw_prof_folder)) {
+        // Create the folder
+        if (!createFolder(raw_prof_folder)) {
+          std::cerr << "Failed to create the folder." << std::endl;
+          return 1;
+        }
+      }
+    }
+    std::string raw_prof_file = raw_prof_folder + "/raw_dormant.log";
+    outputFile.open(raw_prof_file.c_str(), std::ios::app | std::ios::out);
+    if (!outputFile.is_open())
+      std::cout << "Error opening file: " << raw_prof_file << std::endl;
   }
-
-      std::string raw_prof_file = raw_prof_folder + "/raw_dormant.log";
-      outputFile.open(raw_prof_file.c_str(), std::ios::app | std::ios::out);
-      if (!outputFile.is_open())
-        std::cout << "Error opening file: "<< raw_prof_file << std::endl;
-      
-      //printf("prof output: %s\n", raw_prof_file.c_str());
-  #endif
-
-
 
   for (unsigned Index = 0; Index < getNumContainedPasses(); ++Index) {
     FunctionPass *FP = getContainedPass(Index);
@@ -1478,13 +1471,13 @@ bool FPPassManager::runOnFunction(Function &F) {
       PassManagerPrettyStackEntry X(FP, F);
       TimeRegion PassTimer(getPassTimer(FP));
 
-      #ifdef INC_PROF
-      bool isAnalysis = true;
-      //if(getNumContainedPasses() > 20) {
-      //{
-      if(getNumContainedPasses() > 20 && getNumContainedPasses() < 150) {
+      if (getenv("INC_BUILD_PROF")) {
+        // #ifdef INC_PROF
+        bool isAnalysis = true;
+        if (getNumContainedPasses() > 20 && getNumContainedPasses() < 150) {
           const PassInfo *PI = TPM->findAnalysisPassInfo(FP->getPassID());
-          if (PI && !PI->isAnalysis() && !FP->getPassName().contains("Analysis") &&
+          if (PI && !PI->isAnalysis() &&
+              !FP->getPassName().contains("Analysis") &&
               !FP->getPassName().contains("Analyze") &&
               !FP->getPassName().contains("analysis") &&
               !FP->getPassName().contains("Pre-configure") &&
@@ -1505,7 +1498,8 @@ bool FPPassManager::runOnFunction(Function &F) {
               !FP->getPassName().contains("Local Stack Slot Allocation") &&
               !FP->getPassName().contains(
                   "X86 Speculative Execution Side Effect Suppression") &&
-              !FP->getPassName().contains("X86 Avoid Store Forwarding Blocks") &&
+              !FP->getPassName().contains(
+                  "X86 Avoid Store Forwarding Blocks") &&
               !FP->getPassName().contains(
                   "Post-RA pseudo instruction expansion pass") &&
               !FP->getPassName().contains("Register Allocation Pass Scoring") &&
@@ -1530,7 +1524,8 @@ bool FPPassManager::runOnFunction(Function &F) {
               !FP->getPassName().contains("Two-Address instruction pass") &&
               !FP->getPassName().contains("X86 Execution Dependency Fix") &&
               !FP->getPassName().contains("X86 Fixup SetCC") &&
-              !FP->getPassName().contains("Scalarize Masked Memory Intrinsics") &&
+              !FP->getPassName().contains(
+                  "Scalarize Masked Memory Intrinsics") &&
               !FP->getPassName().contains("Fixup Statepoint Caller Saved") &&
               !FP->getPassName().contains("Safe Stack instrumentation pass") &&
               !FP->getPassName().contains("X86 Return Thunks") &&
@@ -1538,64 +1533,53 @@ bool FPPassManager::runOnFunction(Function &F) {
                   "Remove unreachable machine basic blocks")) {
             isAnalysis = false;
           }
-      }
+        }
         bool Changed = FP->runOnFunction(F);
         LocalChanged |= Changed;
-        if(!isAnalysis && !Changed) {
-            // outputFile << "module: " <<  F.getParent()->getName().str() << " HashValue: " << hasher(FP->getPassName().str()) + StructuralHash(F) << std::endl;
-            outputFile << hasher(FP->getPassName().str()) + StructuralHash(F) << std::endl;
+        if (!isAnalysis && !Changed) {
+          outputFile << hasher(FP->getPassName().str()) + StructuralHash(F)
+                     << std::endl;
         }
-      #endif
-      
-      #ifdef INC_BUILD
-      bool dormant = false;
-      if(!dormant_pass.empty()) {
+      }
+      // #endif
+
+      // #ifdef INC_BUILD
+      if (getenv("INC_BUILD_BUILD")) {
+        bool dormant = false;
+        if (!dormant_pass.empty()) {
           uint64_t hashValue = hasher(FP->getPassName().str()) + FuncHash;
           if (dormant_pass.find(hashValue) != dormant_pass.end()) {
             dormant = true;
             //printf("find dormant\n");
           }
-      }
-      if (!dormant) {
-        bool Changed = FP->runOnFunction(F);
-
-        if (Changed) {
-          //begin_time = clock();
-          FuncHash = StructuralHash(F);
-          //hash_time += float(clock() - begin_time) / CLOCKS_PER_SEC;
-          hash_cnt++;
         }
+        if (!dormant) {
+          bool Changed = FP->runOnFunction(F);
 
-        LocalChanged |= Changed;
-        if (Changed)
-          changed++;
-        else
-          not_changed++;
-      } else {
-        // only used for analysis
-        1;
-        // begin_time = clock();
-        // bool Changed = FP->runOnFunction(F);
-        // saved_time += float(clock() - begin_time) / CLOCKS_PER_SEC;
-        // if (Changed) {
-        //   begin_time = clock();
-        //   FuncHash = StructuralHash(F);
-        //   hash_time += float(clock() - begin_time) / CLOCKS_PER_SEC;
-        //   hash_cnt++;
-        // }
+          if (Changed) {
+            // begin_time = clock();
+            FuncHash = StructuralHash(F);
+            // hash_time += float(clock() - begin_time) / CLOCKS_PER_SEC;
+            hash_cnt++;
+          }
 
-        // LocalChanged |= Changed;
-        // if (Changed)
-        //   changed++;
-        // else
-        //   not_changed++;
+          LocalChanged |= Changed;
+          if (Changed)
+            changed++;
+          else
+            not_changed++;
+        } else {
+          1;
+        }
       }
-      #endif
-      #if !defined(INC_BUILD) &&  !defined(INC_PROF)
+      // #endif
+      if (!getenv("INC_BUILD_PROF") && !getenv("INC_BUILD_BUILD")) {
+        // #if !defined(INC_BUILD) &&  !defined(INC_PROF)
+        // printf("normal build mode\n");
         bool Changed = FP->runOnFunction(F);
-        //printf("pass: %s changed: %d\n", FP->getPassName().str().c_str(), Changed);
-         LocalChanged |= Changed;
-      #endif
+        LocalChanged |= Changed;
+        // #endif
+      }
       if (EmitICRemark) {
         unsigned NewSize = F.getInstructionCount();
 
@@ -1624,19 +1608,22 @@ bool FPPassManager::runOnFunction(Function &F) {
     recordAvailableAnalysis(FP);
     removeDeadPasses(FP, F.getName(), ON_FUNCTION_MSG);
   }
-  #ifdef INC_BUILD
-  // printf("hash_time: %f check_time: %f saved_time: %f\n", hash_time,
-  //        check_time, saved_time);
-  #endif
-  #ifdef INC_PROF
+  // #ifdef INC_BUILD
+  // // printf("hash_time: %f check_time: %f saved_time: %f\n", hash_time,
+  // //        check_time, saved_time);
+  // #endif
+  if (getenv("INC_BUILD_PROF")) {
+    // #ifdef INC_PROF
     outputFile.close();
-  #endif
+    // #endif
+  }
   return Changed;
 }
 
 bool FPPassManager::runOnModule(Module &M) {
   bool Changed = false;
-  //printf("RunOnModule: %s cnt: %d\n", M.getName().str().c_str(), getNumContainedPasses());
+  // printf("RunOnModule: %s cnt: %d\n", M.getName().str().c_str(),
+  // getNumContainedPasses());
   for (Function &F : M)
     Changed |= runOnFunction(F);
 
@@ -1645,57 +1632,24 @@ bool FPPassManager::runOnModule(Module &M) {
 
 bool FPPassManager::doInitialization(Module &M) {
 
-  // printf("doInitialization: %s cnt: %d\n", M.getName().str().c_str(), getNumContainedPasses());
   bool Changed = false;
 
   for (unsigned Index = 0; Index < getNumContainedPasses(); ++Index)
     Changed |= getContainedPass(Index)->doInitialization(M);
 
-  #if defined(INC_BUILD) || defined(INC_PROF)
-    if (getenv("INC_BUILD_PROF_HASH")) {
-        dormant_pass_folder = std::string(getenv("INC_BUILD_PROF_HASH"));
+  if (getenv("INC_BUILD_DORMANT_FOLDER")) {
+      project_dormant_log_folder = std::string(getenv("INC_BUILD_DORMANT_FOLDER"));
   }
-  #endif
 
-  #ifdef INC_BUILD
-  dormant_pass.clear();
-  if(getNumContainedPasses() > 20 && getNumContainedPasses() < 150) {
-  //if(getNumContainedPasses() == 112) {
-  //if(getNumContainedPasses() > 20) {
-  //  {
+  if (getenv("INC_BUILD_PROF_HASH")) {
+    dormant_pass_folder = std::string(getenv("INC_BUILD_PROF_HASH"));
+  }
 
-
-      // std::string module_name = M.getName().str();
-      // {
-      //   // shorten the module_name
-      //       int slash_count = std::count(module_name.begin(), module_name.end(), '/');
-      //       if (slash_count > 3)
-      //       {
-      //           std::istringstream iss(module_name);
-      //           std::vector<std::string> folders;
-      //           std::string folder;
-
-      //           while (std::getline(iss, folder, '/'))
-      //           {
-      //               folders.push_back(folder);
-      //           }
-
-      //           std::ostringstream oss;
-      //           for (int i = slash_count - 2; i < slash_count; ++i)
-      //           {
-      //               oss << folders[i] << "/";
-      //           }
-      //           oss << folders[slash_count];
-
-      //           module_name = oss.str();
-      //       }
-      // }
-      // module_name = std::regex_replace(module_name, std::regex("\\."), "dot");
-      // module_name = std::regex_replace(module_name, std::regex("/"), "antislash");
-      // std::string filePath = project_dormant_log_folder + dormant_pass_folder + '/'
-      //                       module_name + ".log";
-
-      std::string filePath = project_dormant_log_folder + dormant_pass_folder + "/raw_dormant.log";
+  if (getenv("INC_BUILD_BUILD")) {
+    dormant_pass.clear();
+    if (getNumContainedPasses() > 20 && getNumContainedPasses() < 150) {
+      std::string filePath =
+          project_dormant_log_folder + '/' + dormant_pass_folder + "/raw_dormant.log";
 
       std::ifstream inputFile(filePath);
 
@@ -1704,16 +1658,13 @@ bool FPPassManager::doInitialization(Module &M) {
       } else {
         std::string line;
         uint64_t hash_value;
-        while (inputFile>>hash_value) {
+        while (inputFile >> hash_value) {
           dormant_pass.insert(hash_value);
         }
         inputFile.close();
       }
-      //printf("hash_size: %d\n", dormant_pass.size());
-      //printf("loadtime: %f\n", float(clock() - begin_time) / CLOCKS_PER_SEC);
+    }
   }
-  //printf("Pass_size: %d\n", getNumContainedPasses());
-  #endif
 
   return Changed;
 }

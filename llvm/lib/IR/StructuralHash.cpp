@@ -7,11 +7,10 @@
 //===----------------------------------------------------------------------===//
 //
 
-#ifdef EXPENSIVE_CHECKS
-
 #include "llvm/IR/StructuralHash.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Analysis/LoopInfo.h"
 
 using namespace llvm;
 
@@ -30,6 +29,28 @@ class StructuralHash {
 public:
   StructuralHash() = default;
 
+  void update(const Loop &L) {
+
+    SmallVector<const BasicBlock *, 8> BBs;
+    SmallPtrSet<const BasicBlock *, 16> VisitedBBs;
+
+    BBs.push_back(L.getHeader());
+    VisitedBBs.insert(BBs[0]);
+    while (!BBs.empty()) {
+      const BasicBlock *BB = BBs.pop_back_val();
+      update(45798); // Block header
+      for (auto &Inst : *BB)
+        update(Inst.getOpcode());
+
+      const Instruction *Term = BB->getTerminator();
+      for (unsigned i = 0, e = Term->getNumSuccessors(); i != e; ++i) {
+        if (!VisitedBBs.insert(Term->getSuccessor(i)).second)
+          continue;
+        if(L.contains(Term->getSuccessor(i)))
+          BBs.push_back(Term->getSuccessor(i));
+      }
+    }
+  }
   void update(const Function &F) {
     if (F.empty())
       return;
@@ -68,17 +89,22 @@ public:
 } // namespace details
 
 } // namespace
-
-uint64_t llvm::StructuralHash(const Function &F) {
+namespace llvm {
+uint64_t StructuralHash(const Function &F) {
   details::StructuralHash H;
   H.update(F);
   return H.getHash();
 }
 
-uint64_t llvm::StructuralHash(const Module &M) {
+uint64_t StructuralHash(const Module &M) {
   details::StructuralHash H;
   H.update(M);
   return H.getHash();
 }
 
-#endif
+uint64_t StructuralHash(const Loop &L) {
+  details::StructuralHash H;
+  H.update(L);
+  return H.getHash();
+}
+} // namespace llvm

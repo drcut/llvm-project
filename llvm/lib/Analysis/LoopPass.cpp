@@ -26,6 +26,12 @@
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/raw_ostream.h"
+
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+
 using namespace llvm;
 
 #define DEBUG_TYPE "loop-pass-manager"
@@ -76,6 +82,7 @@ LPPassManager::LPPassManager() : FunctionPass(ID) {
 
 // Insert loop into loop nest (LoopInfo) and loop queue (LQ).
 void LPPassManager::addLoop(Loop &L) {
+  printf("fuck you loop\n");
   if (L.isOutermost()) {
     // This is the top level loop.
     LQ.push_front(&L);
@@ -128,6 +135,53 @@ void LPPassManager::markLoopAsDeleted(Loop &L) {
 /// run - Execute all of the passes scheduled for execution.  Keep track of
 /// whether any of the passes modifies the function, and if so, return true.
 bool LPPassManager::runOnFunction(Function &F) {
+
+  // INC_BUILD
+
+    std::hash<std::string> hasher;
+  std::ofstream outputFile;
+
+  std::set<uint64_t> dormant_pass;
+
+  std::string project_dormant_log_folder;
+  if (getenv("INC_BUILD_DORMANT_FOLDER")) {
+      project_dormant_log_folder = std::string(getenv("INC_BUILD_DORMANT_FOLDER"));
+  }
+  std::string dormant_pass_folder;
+  if (getenv("INC_BUILD_PROF_HASH")) {
+    dormant_pass_folder = std::string(getenv("INC_BUILD_PROF_HASH"));
+  }
+
+  if (getenv("INC_BUILD_PROF")) {
+    std::string raw_prof_folder =
+        project_dormant_log_folder + '/' + dormant_pass_folder;
+    std::string raw_prof_file = raw_prof_folder + "/raw_loop_dormant.log";
+    outputFile.open(raw_prof_file.c_str(), std::ios::app | std::ios::out);
+    if (!outputFile.is_open())
+      std::cout << "Error opening file: " << raw_prof_file << std::endl;
+  }
+
+  /*
+  if (getenv("INC_BUILD_BUILD")) {
+    dormant_pass.clear();
+      std::string filePath =
+          project_dormant_log_folder + '/' + dormant_pass_folder + "/raw_loop_dormant.log";
+
+      std::ifstream inputFile(filePath);
+
+      if (!inputFile) {
+        std::cout << "Failed to open the file: " << filePath << std::endl;
+      } else {
+        std::string line;
+        uint64_t hash_value;
+        while (inputFile >> hash_value) {
+          dormant_pass.insert(hash_value);
+        }
+        inputFile.close();
+      }
+  }
+  */
+
   auto &LIWP = getAnalysis<LoopInfoWrapperPass>();
   LI = &LIWP.getLoopInfo();
   Module &M = *F.getParent();
@@ -180,7 +234,7 @@ bool LPPassManager::runOnFunction(Function &F) {
       LoopPass *P = getContainedPass(Index);
 
       llvm::TimeTraceScope LoopPassScope("RunLoopPass", P->getPassName());
-
+      // printf("runPass: %s\n", P->getPassName().str().c_str());
       dumpPassInfo(P, EXECUTION_MSG, ON_LOOP_MSG,
                    CurrentLoop->getHeader()->getName());
       dumpRequiredSet(P);
@@ -194,7 +248,33 @@ bool LPPassManager::runOnFunction(Function &F) {
 #ifdef EXPENSIVE_CHECKS
         uint64_t RefHash = StructuralHash(F);
 #endif
+
+      if (getenv("INC_BUILD_PROF")) {
         LocalChanged = P->runOnLoop(CurrentLoop, *this);
+        if (!LocalChanged) {
+          const PassInfo *PI = TPM->findAnalysisPassInfo(P->getPassID());
+          if (PI && !PI->isAnalysis()) {
+              //printf("dormant: %s\n", P->getPassName().str().c_str());
+              outputFile << hasher(P->getPassName().str()) + StructuralHash(*CurrentLoop)
+                        << std::endl;
+          }
+        }
+      }
+      else if (getenv("INC_BUILD_BUILD")) {
+        bool dormant = false;
+        if (!dormant_pass.empty()) {
+          uint64_t hashValue = hasher(P->getPassName().str()) + StructuralHash(*CurrentLoop);
+          if (dormant_pass.find(hashValue) != dormant_pass.end()) {
+            dormant = true;
+          }
+        }
+        if (!dormant) {
+          LocalChanged = P->runOnLoop(CurrentLoop, *this);
+        }
+      }
+      else {
+        LocalChanged = P->runOnLoop(CurrentLoop, *this);
+      }
 
 #ifdef EXPENSIVE_CHECKS
         if (!LocalChanged && (RefHash != StructuralHash(F))) {

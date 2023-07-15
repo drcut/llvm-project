@@ -14,7 +14,7 @@
 #ifndef LLVM_IR_STRUCTURALHASH_H
 #define LLVM_IR_STRUCTURALHASH_H
 
-#ifdef EXPENSIVE_CHECKS
+//#ifdef EXPENSIVE_CHECKS
 
 #include <cstdint>
 
@@ -23,12 +23,12 @@ namespace llvm {
 
 class Function;
 class Module;
+class Loop;
 
 uint64_t StructuralHash(const Function &F);
 uint64_t StructuralHash(const Module &M);
+uint64_t StructuralHash(const Loop &L);
 
 } // end namespace llvm
-
-#endif
 
 #endif // LLVM_IR_STRUCTURALHASH_H
