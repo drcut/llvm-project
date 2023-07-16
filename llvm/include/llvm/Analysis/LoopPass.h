@@ -77,6 +77,7 @@ public:
   static char ID;
   explicit LPPassManager();
 
+  static std::set<uint64_t> dormant_pass;
   /// run - Execute all of the passes scheduled for execution.  Keep track of
   /// whether any of the passes modifies the module, and if so, return true.
   bool runOnFunction(Function &F) override;

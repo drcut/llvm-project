@@ -1630,6 +1630,7 @@ bool FPPassManager::runOnModule(Module &M) {
   return Changed;
 }
 
+std::set<uint64_t> FPPassManager::dormant_pass;
 bool FPPassManager::doInitialization(Module &M) {
 
   bool Changed = false;
@@ -1646,8 +1647,7 @@ bool FPPassManager::doInitialization(Module &M) {
   }
 
   if (getenv("INC_BUILD_BUILD")) {
-    dormant_pass.clear();
-    if (getNumContainedPasses() > 20 && getNumContainedPasses() < 150) {
+    if (dormant_pass.empty()) {
       std::string filePath =
           project_dormant_log_folder + '/' + dormant_pass_folder + "/raw_dormant.log";
 
